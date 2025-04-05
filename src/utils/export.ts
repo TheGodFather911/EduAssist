@@ -38,6 +38,17 @@ function getFontForLanguage(lang: string) {
   }
 }
 
+// Function to fix Arabic text rendering
+function fixArabicText(text: string): string {
+  if (detectLanguage(text) !== 'ar') return text;
+  
+  // Remove any existing directional marks
+  text = text.replace(/[\u200E\u200F\u202A-\u202E]/g, '');
+  
+  // Add RLM mark at the start and end of the text
+  return `\u200F${text}\u200F`;
+}
+
 export async function exportToPDF(content: string, title: string) {
   const lang = detectLanguage(content);
   const isRTL = lang === 'ar';
@@ -57,7 +68,8 @@ export async function exportToPDF(content: string, title: string) {
   // Add title
   doc.setFont(font, 'bold');
   doc.setFontSize(24);
-  doc.text(title, isRTL ? doc.internal.pageSize.width - 20 : 20, 20, {
+  const processedTitle = isRTL ? fixArabicText(title) : title;
+  doc.text(processedTitle, isRTL ? doc.internal.pageSize.width - 20 : 20, 20, {
     align: isRTL ? 'right' : 'left',
   });
 
@@ -74,7 +86,8 @@ export async function exportToPDF(content: string, title: string) {
       doc.setFont(font, 'bold');
       doc.setFontSize(18 - (node.depth || 0) * 2);
       const text = node.children?.[0]?.value || '';
-      doc.text(text, isRTL ? pageWidth - margin : margin, yPosition, {
+      const processedText = isRTL ? fixArabicText(text) : text;
+      doc.text(processedText, isRTL ? pageWidth - margin : margin, yPosition, {
         align: isRTL ? 'right' : 'left',
       });
       yPosition += 10;
@@ -82,7 +95,8 @@ export async function exportToPDF(content: string, title: string) {
       doc.setFont(font, 'normal');
       doc.setFontSize(12);
       const text = node.children?.map(child => child.value).join('') || '';
-      const lines = doc.splitTextToSize(text, textWidth);
+      const processedText = isRTL ? fixArabicText(text) : text;
+      const lines = doc.splitTextToSize(processedText, textWidth);
       
       // Check if we need a new page
       if (yPosition + (lines.length * 7) > doc.internal.pageSize.height - margin) {
@@ -119,9 +133,10 @@ export async function exportToDocx(content: string, title: string) {
       spacing: {
         after: 400,
       },
+      bidirectional: isRTL,
       children: [
         new TextRun({
-          text: title,
+          text: isRTL ? fixArabicText(title) : title,
           font,
           size: 36,
           bold: true,
@@ -141,9 +156,10 @@ export async function exportToDocx(content: string, title: string) {
             before: 400,
             after: 200,
           },
+          bidirectional: isRTL,
           children: [
             new TextRun({
-              text: node.children?.[0]?.value || '',
+              text: isRTL ? fixArabicText(node.children?.[0]?.value || '') : (node.children?.[0]?.value || ''),
               font,
               size: 28 - ((node.depth || 0) * 2),
               bold: true,
@@ -159,9 +175,10 @@ export async function exportToDocx(content: string, title: string) {
             before: 200,
             after: 200,
           },
+          bidirectional: isRTL,
           children: [
             new TextRun({
-              text: node.children?.map(child => child.value).join('') || '',
+              text: isRTL ? fixArabicText(node.children?.map(child => child.value).join('') || '') : (node.children?.map(child => child.value).join('') || ''),
               font,
               size: 24,
             }),
